@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ProxyTester</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <h1>ProxyTester</h1>
+    <p class="subtitle">Testa listas de proxies HTTP contra uma URL alvo, N vezes cada, com validação de conteúdo real.</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="grid">
+        <div class="col-proxies">
+          <label for="proxies">Lista de proxies (um por linha)</label>
+          <textarea id="proxies" rows="16" placeholder="http://usuario:senha@ip:porta
+http://ip:porta
+# linhas com # são ignoradas"></textarea>
+        </div>
+
+        <div class="col-config">
+          <label for="target_url">URL alvo</label>
+          <input id="target_url" type="text" value="https://www.uol.com.br" placeholder="https://exemplo.com/pagina" />
+
+          <div class="row">
+            <div>
+              <label for="repetitions">N (repetições por proxy)</label>
+              <input id="repetitions" type="number" min="1" max="50" value="5" />
+            </div>
+            <div>
+              <label for="concurrency">Concorrência (proxies em paralelo)</label>
+              <input id="concurrency" type="number" min="1" max="50" value="5" />
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label for="delay_ms">Delay entre requisições (ms)</label>
+              <input id="delay_ms" type="number" min="0" value="500" />
+            </div>
+            <div>
+              <label for="timeout_s">Timeout por requisição (s)</label>
+              <input id="timeout_s" type="number" min="1" value="15" />
+            </div>
+          </div>
+
+          <label for="similarity_threshold">Limiar de similaridade de conteúdo (%)</label>
+          <input id="similarity_threshold" type="number" min="0" max="100" value="90" step="5" />
+          <p class="hint">
+            A página alvo é baixada uma vez sem proxy, como referência. Cada resposta via proxy
+            é comparada a ela; uma requisição só conta como sucesso se o conteúdo for pelo menos
+            este % parecido (algum desvio é normal — anúncios e widgets dinâmicos variam entre requisições).
+          </p>
+
+          <div class="checkbox-row">
+            <label><input id="verify_ssl" type="checkbox" checked /> Verificar SSL</label>
+          </div>
+
+          <button id="submit-btn">Enviar</button>
+          <button id="cancel-btn" class="secondary" disabled>Cancelar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="progress-panel" hidden>
+      <div class="progress-bar-wrap">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+      <p id="progress-text"></p>
+      <div class="log-header">
+        <span>Log de execução</span>
+        <label class="log-autoscroll"><input id="autoscroll" type="checkbox" checked /> Auto-scroll</label>
+      </div>
+      <div id="log-panel" class="log-panel"></div>
+    </section>
+
+    <section class="panel" id="results-panel" hidden>
+      <div class="results-header">
+        <h2>Resultados</h2>
+        <div class="export-controls">
+          <label for="threshold">Exportar proxies com taxa de sucesso &ge;</label>
+          <input id="threshold" type="number" min="0" max="100" value="80" step="5" /> %
+          <button id="export-btn" class="secondary">Copiar aprovados</button>
+          <span id="export-status"></span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="results-table">
+          <thead>
+            <tr>
+              <th>Proxy</th>
+              <th>Taxa de sucesso</th>
+              <th>Passou / Total</th>
+              <th>Similaridade méd.</th>
+              <th>Latência méd/min/max (s)</th>
+              <th>Tempo total (s)</th>
+              <th>Motivos de falha</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
