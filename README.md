@@ -1,67 +1,67 @@
 # 🚀 ProxyTester
 
-O **ProxyTester** é uma ferramenta local, leve e robusta projetada para testar e validar listas de proxies HTTP contra uma URL alvo configurável. Ao contrário de testadores simples que apenas validam o status code HTTP (o que é facilmente burlado por telas de bloqueio de bots que retornam status 200), o ProxyTester faz uma validação profunda por **comparação de similaridade de conteúdo** contra uma referência real obtida sem proxy.
+**ProxyTester** is a lightweight, local, and robust tool designed to test and validate HTTP proxy lists against a configurable target URL. Unlike naive testers that only check HTTP status codes (which are easily bypassed by bot-blocking screens returning a 200 OK status), ProxyTester performs deep validation using **content similarity comparison** against a real baseline page fetched without a proxy.
 
 ---
 
-## 🏗️ Arquitetura
+## 🏗️ Architecture
 
-O sistema é dividido em duas partes principais, mantendo um design limpo e sem dependências externas complexas:
+The system is divided into two main components, keeping a clean design without complex external dependencies:
 
-*   **Backend (`backend/`):** Construído em **Python** utilizando **FastAPI** e **httpx** assíncrono. É responsável pela execução das requisições via proxy (`httpx.AsyncClient(proxy=...)`), cálculo da similaridade do HTML e controle de concorrência.
-*   **Frontend (`frontend/`):** Interface amigável e reativa em **HTML5, CSS3 e JavaScript (ES6) puros**, servida estaticamente pelo próprio backend FastAPI. Permite configurar o teste, colar as listas de proxy e acompanhar o progresso e logs em tempo real.
-
----
-
-## ⚙️ Mecanismo de Validação e Parâmetros
-
-### Como funciona a validação?
-1. Antes de testar qualquer proxy, o backend faz o download da **URL alvo** diretamente (sem proxy) e armazena o corpo HTML completo como **Referência**.
-2. Cada proxy é testado **N vezes** (Repetições) sequencialmente, respeitando um intervalo (Delay) configurado.
-3. Para cada requisição feita pelo proxy, a resposta HTML obtida é comparada com a Referência usando o algoritmo `SequenceMatcher` da biblioteca padrão do Python (`difflib`).
-4. Uma tentativa é considerada bem-sucedida somente se o status HTTP for de sucesso (2xx) e a similaridade do conteúdo for igual ou superior ao **Limiar de Similaridade** configurado (padrão de 90%).
-
-### Principais Parâmetros
-*   **Repetições ($N$):** Define quantas vezes cada proxy será testado. Essencial para verificar a estabilidade do proxy ao longo do tempo.
-*   **URL Alvo:** O endereço de destino do teste.
-*   **Concorrência:** Número de proxies testados simultaneamente.
-*   **Delay (ms):** Intervalo de espera entre as repetições sequenciais de um mesmo proxy.
-*   **Limiar de Similaridade:** Fração mínima (0 a 1) de correspondência com a página de referência para marcar o teste do proxy como OK.
+*   **Backend (`backend/`):** Built in **Python** using **FastAPI** and asynchronous **httpx**. It executes proxy requests (`httpx.AsyncClient(proxy=...)`), calculates HTML similarity, and manages concurrency.
+*   **Frontend (`frontend/`):** A responsive and friendly UI built with **vanilla HTML5, CSS3, and JavaScript (ES6)**, served statically by the FastAPI backend itself. Allows configuring tests, pasting proxy lists, and tracking real-time execution logs and progress.
 
 ---
 
-## ⚡ Inicialização Rápida
+## ⚙️ Validation Mechanism & Parameters
 
-O projeto vem com o script auto-configurável `start.sh` na raiz. Ele cria o ambiente virtual Python, instala as dependências e inicia o servidor automaticamente.
+### How does validation work?
+1. Before testing any proxy, the backend downloads the **Target URL** directly (without proxy) and stores the full HTML body as the **Reference**.
+2. Each proxy is tested **N times** (Repetitions) sequentially, respecting a configured interval (Delay).
+3. For each request performed via proxy, the response HTML is compared to the Reference using Python's standard library `SequenceMatcher` (`difflib`).
+4. An attempt is marked as successful only if the HTTP status is successful (2xx) and the content similarity is greater than or equal to the configured **Similarity Threshold** (default 90%).
 
-Para rodar o projeto, execute no terminal:
+### Key Parameters
+*   **Repetitions ($N$):** Number of times each proxy is tested. Essential for checking proxy consistency over time.
+*   **Target URL:** Destination webpage for testing.
+*   **Concurrency:** Number of proxies tested in parallel.
+*   **Delay (ms):** Wait time between sequential requests for the same proxy.
+*   **Similarity Threshold:** Minimum ratio (0 to 1) of matching content with the reference page to mark a proxy attempt as OK.
+
+---
+
+## ⚡ Quick Start
+
+The project includes an auto-configuring `start.sh` script in the root directory. It automatically sets up the Python virtual environment, installs dependencies, and starts the server.
+
+To run the project, execute in your terminal:
 
 ```bash
 ./start.sh
 ```
 
-Depois, acesse a ferramenta no seu navegador: **[http://localhost:8000](http://localhost:8000)**
+Then open your browser at: **[http://localhost:8000](http://localhost:8000)**
 
 ---
 
-## 🔌 Documentação das APIs (Endpoints)
+## 🔌 API Documentation (Endpoints)
 
-Abaixo estão descritos os endpoints da API REST do ProxyTester com os formatos de entrada e saída esperados, acompanhados de exemplos de chamadas em **cURL**, **Python** e **Node.js**.
+Below are the REST API endpoints provided by ProxyTester with request/response schemas and code examples in **cURL**, **Python**, and **Node.js**.
 
-### 1. Criar um Job de Teste (`POST /api/jobs`)
-Inicia um processo de validação em background para uma lista de proxies informada.
+### 1. Create a Test Job (`POST /api/jobs`)
+Initiates a background validation process for a provided proxy list.
 
-*   **Payload (JSON):**
-    *   `proxies_raw` (String, obrigatório): Lista de proxies separados por quebra de linha.
-    *   `target_url` (String, padrão: `https://www.uol.com.br`): URL alvo do teste.
-    *   `repetitions` (Integer, 1 a 50, padrão: `5`)
-    *   `concurrency` (Integer, 1 a 50, padrão: `5`)
-    *   `delay_ms` (Integer, 0 a 60000, padrão: `500`)
-    *   `timeout_s` (Float, 0.1 a 120, padrão: `15.0`)
-    *   `similarity_threshold` (Float, 0.0 a 1.0, padrão: `0.9`)
-    *   `verify_ssl` (Boolean, padrão: `true`)
+*   **Request Body (JSON):**
+    *   `proxies_raw` (String, required): Line-separated list of proxies.
+    *   `target_url` (String, default: `https://www.uol.com.br`): Target URL to test.
+    *   `repetitions` (Integer, 1 to 50, default: `5`)
+    *   `concurrency` (Integer, 1 to 50, default: `5`)
+    *   `delay_ms` (Integer, 0 to 60000, default: `500`)
+    *   `timeout_s` (Float, 0.1 to 120, default: `15.0`)
+    *   `similarity_threshold` (Float, 0.0 to 1.0, default: `0.9`)
+    *   `verify_ssl` (Boolean, default: `true`)
 
-*   **Retorno (JSON):**
+*   **Response (JSON):**
     ```json
     {
       "job_id": "31f478a2e1d749969248cb1551a34db2",
@@ -69,7 +69,7 @@ Inicia um processo de validação em background para uma lista de proxies inform
     }
     ```
 
-#### Exemplos de Chamada:
+#### Request Examples:
 
 <details>
 <summary><b>cURL</b></summary>
@@ -78,7 +78,7 @@ Inicia um processo de validação em background para uma lista de proxies inform
 curl -X POST http://localhost:8000/api/jobs \
   -H "Content-Type: application/json" \
   -d '{
-    "proxies_raw": "185.199.229.156:7492\nhttp://usuario:senha@192.168.1.100:8080",
+    "proxies_raw": "185.199.229.156:7492\nhttp://user:pass@192.168.1.100:8080",
     "target_url": "https://www.google.com",
     "repetitions": 3,
     "concurrency": 2,
@@ -98,7 +98,7 @@ import requests
 
 url = "http://localhost:8000/api/jobs"
 payload = {
-    "proxies_raw": "185.199.229.156:7492\nhttp://usuario:senha@192.168.1.100:8080",
+    "proxies_raw": "185.199.229.156:7492\nhttp://user:pass@192.168.1.100:8080",
     "target_url": "https://www.google.com",
     "repetitions": 3,
     "concurrency": 2,
@@ -118,7 +118,7 @@ print(response.json())
 
 ```javascript
 const payload = {
-  proxies_raw: "185.199.229.156:7492\nhttp://usuario:senha@192.168.1.100:8080",
+  proxies_raw: "185.199.229.156:7492\nhttp://user:pass@192.168.1.100:8080",
   target_url: "https://www.google.com",
   repetitions: 3,
   concurrency: 2,
@@ -141,53 +141,53 @@ fetch('http://localhost:8000/api/jobs', {
 
 ---
 
-### 2. Consultar Status do Job (`GET /api/jobs/{job_id}`)
-Consulta o status atual, logs em tempo real e os resultados detalhados de cada proxy.
+### 2. Get Job Status (`GET /api/jobs/{job_id}`)
+Retrieves current status, real-time logs, and detailed per-proxy results.
 
 *   **Query Params:**
-    *   `log_since` (Integer, opcional, padrão: `0`): Índice a partir do qual retornar os logs novos do job.
+    *   `log_since` (Integer, optional, default: `0`): Log array index to fetch incremental log lines.
 
-*   **Retorno (JSON):**
+*   **Response (JSON):**
     ```json
     {
       "job_id": "31f478a2e1d749969248cb1551a34db2",
-      "status": "done", // Estados: "running", "done", "cancelled", "error"
-      "error": "",      // Mensagem de erro caso o status seja "error"
-      "total": 2,       // Total de proxies no job
-      "completed": 2,   // Quantidade de proxies já processados
-      "results": [      // Lista com o resultado detalhado por proxy
+      "status": "done", // Possible statuses: "running", "done", "cancelled", "error"
+      "error": "",      // Error message if status is "error"
+      "total": 2,       // Total proxies in job
+      "completed": 2,   // Number of proxies completed so far
+      "results": [      // Detailed per-proxy summary list
         {
           "proxy": "http://185.199.229.156:7492",
           "total_requests": 3,
           "passed": 2,
           "failed": 1,
           "success_rate": 0.6667,
-          "avg_similarity": 0.9412, // Média da similaridade do conteúdo nas tentativas válidas
+          "avg_similarity": 0.9412, // Average content similarity ratio for valid responses
           "total_time_s": 4.125,
           "avg_latency_s": 1.375,
           "min_latency_s": 0.912,
           "max_latency_s": 2.103,
-          "failure_reasons": {      // Histórico de motivos de falhas nas tentativas
+          "failure_reasons": {      // Count of failure reasons encountered
             "timeout": 1
           }
         }
       ],
-      "log": [          // Lista de strings com eventos detalhados do job (incremental)
-        "Baixando página de referência (sem proxy): https://www.google.com",
-        "Referência baixada com sucesso (14520 bytes).",
-        "Teste concluído."
+      "log": [          // Incremental log events
+        "Downloading reference page (without proxy): https://www.google.com",
+        "Reference page downloaded successfully (14520 bytes).",
+        "Test completed."
       ],
-      "log_total": 3    // Quantidade total de linhas geradas no log até o momento
+      "log_total": 3    // Total lines produced in log so far
     }
     ```
 
-#### Exemplos de Chamada:
+#### Request Examples:
 
 <details>
 <summary><b>cURL</b></summary>
 
 ```bash
-curl -X GET "http://localhost:8000/api/jobs/SEU_JOB_ID?log_since=0"
+curl -X GET "http://localhost:8000/api/jobs/YOUR_JOB_ID?log_since=0"
 ```
 </details>
 
@@ -197,12 +197,12 @@ curl -X GET "http://localhost:8000/api/jobs/SEU_JOB_ID?log_since=0"
 ```python
 import requests
 
-job_id = "SEU_JOB_ID"
+job_id = "YOUR_JOB_ID"
 response = requests.get(f"http://localhost:8000/api/jobs/{job_id}?log_since=0")
 data = response.json()
 
 print(f"Status: {data['status']}")
-print(f"Progresso: {data['completed']}/{data['total']}")
+print(f"Progress: {data['completed']}/{data['total']}")
 ```
 </details>
 
@@ -210,36 +210,36 @@ print(f"Progresso: {data['completed']}/{data['total']}")
 <summary><b>Node.js (Fetch)</b></summary>
 
 ```javascript
-const jobId = "SEU_JOB_ID";
+const jobId = "YOUR_JOB_ID";
 
 fetch(`http://localhost:8000/api/jobs/${jobId}?log_since=0`)
   .then(res => res.json())
   .then(data => {
     console.log(`Status: ${data.status}`);
-    console.log(`Progresso: ${data.completed}/${data.total}`);
+    console.log(`Progress: ${data.completed}/${data.total}`);
   });
 ```
 </details>
 
 ---
 
-### 3. Cancelar um Job (`POST /api/jobs/{job_id}/cancel`)
-Interrompe a execução de um teste que ainda está em andamento.
+### 3. Cancel a Job (`POST /api/jobs/{job_id}/cancel`)
+Stops an ongoing proxy test job.
 
-*   **Retorno (JSON):**
+*   **Response (JSON):**
     ```json
     {
       "status": "cancelled"
     }
     ```
 
-#### Exemplos de Chamada:
+#### Request Examples:
 
 <details>
 <summary><b>cURL</b></summary>
 
 ```bash
-curl -X POST http://localhost:8000/api/jobs/SEU_JOB_ID/cancel
+curl -X POST http://localhost:8000/api/jobs/YOUR_JOB_ID/cancel
 ```
 </details>
 
@@ -249,7 +249,7 @@ curl -X POST http://localhost:8000/api/jobs/SEU_JOB_ID/cancel
 ```python
 import requests
 
-job_id = "SEU_JOB_ID"
+job_id = "YOUR_JOB_ID"
 response = requests.post(f"http://localhost:8000/api/jobs/{job_id}/cancel")
 print(response.json())
 ```
@@ -259,7 +259,7 @@ print(response.json())
 <summary><b>Node.js (Fetch)</b></summary>
 
 ```javascript
-const jobId = "SEU_JOB_ID";
+const jobId = "YOUR_JOB_ID";
 
 fetch(`http://localhost:8000/api/jobs/${jobId}/cancel`, { method: 'POST' })
   .then(res => res.json())
@@ -269,25 +269,25 @@ fetch(`http://localhost:8000/api/jobs/${jobId}/cancel`, { method: 'POST' })
 
 ---
 
-### 4. Exportar Proxies Aprovados (`GET /api/jobs/{job_id}/export`)
-Retorna uma lista de proxies aprovados em formato de texto puro (`text/plain`), filtrada por uma taxa de sucesso mínima.
+### 4. Export Passing Proxies (`GET /api/jobs/{job_id}/export`)
+Exports approved proxies in plain text (`text/plain`), filtered by a minimum success rate.
 
 *   **Query Params:**
-    *   `threshold` (Float, opcional, padrão: `0.8`): Taxa de sucesso mínima (ex: `0.8` exige no mínimo 80% de requisições bem-sucedidas nas repetições).
+    *   `threshold` (Float, optional, default: `0.8`): Minimum required success rate (e.g. `0.8` requires at least 80% passing attempts).
 
-*   **Retorno (`text/plain`):**
+*   **Response (`text/plain`):**
     ```text
     http://185.199.229.156:7492
-    http://usuario:senha@192.168.1.100:8080
+    http://user:pass@192.168.1.100:8080
     ```
 
-#### Exemplos de Chamada:
+#### Request Examples:
 
 <details>
 <summary><b>cURL</b></summary>
 
 ```bash
-curl -X GET "http://localhost:8000/api/jobs/SEU_JOB_ID/export?threshold=0.8"
+curl -X GET "http://localhost:8000/api/jobs/YOUR_JOB_ID/export?threshold=0.8"
 ```
 </details>
 
@@ -297,10 +297,10 @@ curl -X GET "http://localhost:8000/api/jobs/SEU_JOB_ID/export?threshold=0.8"
 ```python
 import requests
 
-job_id = "SEU_JOB_ID"
+job_id = "YOUR_JOB_ID"
 response = requests.get(f"http://localhost:8000/api/jobs/{job_id}/export?threshold=0.8")
-proxies_aprovados = response.text
-print(proxies_aprovados)
+passing_proxies = response.text
+print(passing_proxies)
 ```
 </details>
 
@@ -308,20 +308,25 @@ print(proxies_aprovados)
 <summary><b>Node.js (Fetch)</b></summary>
 
 ```javascript
-const jobId = "SEU_JOB_ID";
+const jobId = "YOUR_JOB_ID";
 
 fetch(`http://localhost:8000/api/jobs/${jobId}/export?threshold=0.8`)
   .then(res => res.text())
-  .then(text => console.log("Proxies aprovados:\n", text));
+  .then(text => console.log("Passing proxies:\n", text));
 ```
 </details>
 
 ---
 
-## 📝 Formato das Listas de Proxies
-Ao inserir proxies, o formato aceito inclui:
-*   `http://usuario:senha@ip:porta`
-*   `http://ip:porta`
-*   `ip:porta` (o protocolo `http://` é adicionado de forma implícita)
+## 📝 Proxy List Format
+Accepted input formats include:
+*   `http://user:pass@ip:port`
+*   `http://ip:port`
+*   `ip:port` (`http://` scheme is added automatically)
 
-*Linhas em branco ou iniciadas por `#` são automaticamente ignoradas pelo parser.*
+*Blank lines and lines starting with `#` are automatically ignored.*
+
+---
+
+## 📄 License
+This project is licensed under the [MIT License](LICENSE).

@@ -21,8 +21,8 @@ async function startJob() {
     verify_ssl: $("verify_ssl").checked,
   };
 
-  if (!body.proxies_raw.trim()) return alert("Cole ao menos um proxy.");
-  if (!body.target_url.trim()) return alert("Informe a URL alvo.");
+  if (!body.proxies_raw.trim()) return alert("Please paste at least one proxy.");
+  if (!body.target_url.trim()) return alert("Please provide a target URL.");
 
   setBusy(true);
   $("results-panel").hidden = true;
@@ -40,13 +40,13 @@ async function startJob() {
     });
   } catch (e) {
     setBusy(false);
-    return alert("Falha ao conectar no backend local.");
+    return alert("Failed to connect to local backend.");
   }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     setBusy(false);
-    return alert("Erro: " + err.detail);
+    return alert("Error: " + err.detail);
   }
 
   const data = await res.json();
@@ -67,7 +67,7 @@ function pollJob(total) {
     if (job.status === "error") {
       clearInterval(pollTimer);
       setBusy(false);
-      alert("Erro: " + job.error);
+      alert("Error: " + job.error);
       return;
     }
     if (job.status === "done" || job.status === "cancelled") {
@@ -96,12 +96,12 @@ function appendLog(lines) {
 }
 
 function classifyLogLine(line) {
-  const concluded = line.match(/concluído: (\d+)\/(\d+)/);
+  const concluded = line.match(/completed: (\d+)\/(\d+)/);
   if (concluded) {
     return concluded[1] === "0" ? "fail" : "ok";
   }
-  if (line.includes(": OK") || line.includes("baixada com sucesso")) return "ok";
-  if (line.includes("FALHOU") || line.startsWith("ERRO")) return "fail";
+  if (line.includes(": OK") || line.includes("downloaded successfully")) return "ok";
+  if (line.includes("FAILED") || line.startsWith("ERROR")) return "fail";
   return "info";
 }
 
@@ -118,7 +118,7 @@ function setBusy(busy) {
 function setProgress(completed, total) {
   const pct = total ? Math.round((completed / total) * 100) : 0;
   $("progress-bar").style.width = pct + "%";
-  $("progress-text").textContent = `${completed} / ${total} proxies testados (${pct}%)`;
+  $("progress-text").textContent = `${completed} / ${total} proxies tested (${pct}%)`;
 }
 
 function rateClass(rate) {
@@ -175,16 +175,16 @@ async function exportPassing() {
     .map((r) => r.proxy);
 
   if (!passing.length) {
-    $("export-status").textContent = "Nenhum proxy atingiu o limiar.";
+    $("export-status").textContent = "No proxies met the threshold.";
     return;
   }
 
   const text = passing.join("\n");
   try {
     await navigator.clipboard.writeText(text);
-    $("export-status").textContent = `${passing.length} proxies copiados.`;
+    $("export-status").textContent = `${passing.length} proxies copied.`;
   } catch {
-    $("export-status").textContent = "Não foi possível copiar automaticamente.";
+    $("export-status").textContent = "Could not copy automatically.";
     console.log(text);
   }
   setTimeout(() => ($("export-status").textContent = ""), 4000);

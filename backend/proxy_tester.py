@@ -122,10 +122,8 @@ async def _single_attempt(client: httpx.AsyncClient, target_url: str, cfg: TestC
                            reference_body: str) -> dict:
     start = time.monotonic()
     try:
-        # Hard cap on total attempt time — httpx's own timeout only bounds gaps
-        # between chunks, so a slow-trickling proxy could otherwise hang past it.
         resp = await asyncio.wait_for(client.get(target_url), timeout=cfg.timeout_s * 2)
-        body = resp.text  # full body is already buffered by httpx at this point
+        body = resp.text
         elapsed = time.monotonic() - start
         ok, similarity, reason = evaluate_response(resp.status_code, body, reference_body,
                                                      cfg.similarity_threshold)
@@ -148,7 +146,7 @@ async def _single_attempt(client: httpx.AsyncClient, target_url: str, cfg: TestC
 async def test_proxy(proxy_url: str, cfg: TestConfig, reference_body: str, log_fn) -> ProxyResult:
     result = ProxyResult(proxy=proxy_url)
     timeout = httpx.Timeout(cfg.timeout_s)
-    log_fn(f"[{proxy_url}] iniciando ({cfg.repetitions}x)")
+    log_fn(f"[{proxy_url}] starting ({cfg.repetitions}x)")
     try:
         async with httpx.AsyncClient(proxy=proxy_url, timeout=timeout,
                                       follow_redirects=True, verify=cfg.verify_ssl) as client:
@@ -157,21 +155,20 @@ async def test_proxy(proxy_url: str, cfg: TestConfig, reference_body: str, log_f
                 result.attempts.append(attempt)
                 if attempt["ok"]:
                     sim_pct = round(attempt["similarity"] * 100)
-                    log_fn(f"[{proxy_url}] tentativa {i + 1}/{cfg.repetitions}: OK "
-                           f"(similaridade {sim_pct}%, {attempt['latency']:.2f}s)")
+                    log_fn(f"[{proxy_url}] attempt {i + 1}/{cfg.repetitions}: OK "
+                           f"(similarity {sim_pct}%, {attempt['latency']:.2f}s)")
                 else:
-                    log_fn(f"[{proxy_url}] tentativa {i + 1}/{cfg.repetitions}: FALHOU "
+                    log_fn(f"[{proxy_url}] attempt {i + 1}/{cfg.repetitions}: FAILED "
                            f"({attempt['reason']})")
                 if cfg.delay_ms and i < cfg.repetitions - 1:
                     await asyncio.sleep(cfg.delay_ms / 1000)
     except Exception as e:
-        # Client construction itself failed (e.g. malformed proxy URL) — record once.
         result.attempts.append({"ok": False, "latency": None, "status": None,
                                  "reason": f"client_error:{str(e)[:120]}", "similarity": None})
-        log_fn(f"[{proxy_url}] erro ao criar cliente: {str(e)[:120]}")
+        log_fn(f"[{proxy_url}] error creating client: {str(e)[:120]}")
 
     s = result.summary
-    log_fn(f"[{proxy_url}] concluído: {s['passed']}/{s['total_requests']} "
+    log_fn(f"[{proxy_url}] completed: {s['passed']}/{s['total_requests']} "
            f"({round(s['success_rate'] * 100)}%)")
     return result
 
@@ -184,7 +181,7 @@ class Job:
     status: str = "running"  # running | done | cancelled | error
     error: str = ""
     completed: int = 0
-    results: dict = field(default_factory=dict)  # proxy -> summary dict
+    results: dict = field(default_factory=dict)
     log: list = field(default_factory=list)
     _task: object = None
 
@@ -208,17 +205,17 @@ class JobStore:
         return self._jobs.get(job_id)
 
     async def run(self, job: Job):
-        job.log_event(f"Baixando página de referência (sem proxy): {job.config.target_url}")
+        job.log_event(f"Downloading reference page (without proxy): {job.config.target_url}")
         try:
             reference_body = await fetch_reference(job.config)
         except Exception as e:
             job.status = "error"
-            job.error = f"Falha ao baixar página de referência (sem proxy): {str(e)[:200]}"
-            job.log_event(f"ERRO ao baixar referência: {job.error}")
+            job.error = f"Failed to download reference page (without proxy): {str(e)[:200]}"
+            job.log_event(f"ERROR downloading reference: {job.error}")
             return
-        job.log_event(f"Referência baixada com sucesso ({len(reference_body)} bytes).")
-        job.log_event(f"Iniciando teste de {len(job.proxies)} proxies "
-                       f"(concorrência {job.config.concurrency}, N={job.config.repetitions}).")
+        job.log_event(f"Reference page downloaded successfully ({len(reference_body)} bytes).")
+        job.log_event(f"Starting test for {len(job.proxies)} proxies "
+                       f"(concurrency {job.config.concurrency}, N={job.config.repetitions}).")
 
         sem = asyncio.Semaphore(max(1, job.config.concurrency))
 
@@ -235,9 +232,9 @@ class JobStore:
         await asyncio.gather(*tasks, return_exceptions=True)
         if job.status != "cancelled":
             job.status = "done"
-            job.log_event("Teste concluído.")
+            job.log_event("Test completed.")
         else:
-            job.log_event("Teste cancelado pelo usuário.")
+            job.log_event("Test cancelled by user.")
 
     def cancel(self, job_id: str) -> bool:
         job = self.get(job_id)

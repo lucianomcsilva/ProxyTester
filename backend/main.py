@@ -31,9 +31,9 @@ class TestRequest(BaseModel):
 async def create_job(req: TestRequest):
     proxies = parse_proxies(req.proxies_raw)
     if not proxies:
-        raise HTTPException(400, "Nenhum proxy válido encontrado na lista.")
+        raise HTTPException(400, "No valid proxies found in list.")
     if not req.target_url.strip():
-        raise HTTPException(400, "URL alvo é obrigatória.")
+        raise HTTPException(400, "Target URL is required.")
 
     cfg = TestConfig(
         target_url=req.target_url.strip(),
@@ -53,7 +53,7 @@ async def create_job(req: TestRequest):
 async def get_job(job_id: str, log_since: int = 0):
     job = jobs.get(job_id)
     if not job:
-        raise HTTPException(404, "Job não encontrado.")
+        raise HTTPException(404, "Job not found.")
     return {
         "job_id": job.id,
         "status": job.status,
@@ -69,7 +69,7 @@ async def get_job(job_id: str, log_since: int = 0):
 @app.post("/api/jobs/{job_id}/cancel")
 async def cancel_job(job_id: str):
     if not jobs.cancel(job_id):
-        raise HTTPException(404, "Job não encontrado.")
+        raise HTTPException(404, "Job not found.")
     return {"status": "cancelled"}
 
 
@@ -77,7 +77,7 @@ async def cancel_job(job_id: str):
 async def export_job(job_id: str, threshold: float = 0.8):
     job = jobs.get(job_id)
     if not job:
-        raise HTTPException(404, "Job não encontrado.")
+        raise HTTPException(404, "Job not found.")
     lines = [r["proxy"] for r in job.results.values() if r["success_rate"] >= threshold]
     return "\n".join(lines)
 

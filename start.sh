@@ -1,36 +1,36 @@
 #!/bin/bash
-# Script de inicialização automática do ProxyTester
-# Configura o ambiente virtual Python e inicia o backend FastAPI
+# ProxyTester automatic initialization script
+# Sets up Python virtual environment and launches FastAPI backend
 
 set -e
 
-# Cores para o terminal
+# Terminal colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}=== Iniciando ProxyTester ===${NC}"
+echo -e "${BLUE}=== Starting ProxyTester ===${NC}"
 
-# Navega para o diretório do backend
+# Navigate to backend directory
 cd "$(dirname "$0")/backend"
 
-# Verifica se o ambiente virtual existe
+# Check if virtual environment exists
 if [ ! -d ".venv" ]; then
-    echo -e "${YELLOW}Criando ambiente virtual Python (.venv)...${NC}"
+    echo -e "${YELLOW}Creating Python virtual environment (.venv)...${NC}"
     python3 -m venv .venv
 fi
 
-# Ativa o ambiente virtual
-echo -e "${GREEN}Ativando ambiente virtual...${NC}"
+# Activate virtual environment
+echo -e "${GREEN}Activating virtual environment...${NC}"
 source .venv/bin/activate
 
-# Instala/atualiza dependências
-echo -e "${GREEN}Instalando/atualizando dependências...${NC}"
+# Install/update dependencies
+echo -e "${GREEN}Installing/updating dependencies...${NC}"
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Inicia o servidor uvicorn
-echo -e "${BLUE}Iniciando servidor na porta 8000...${NC}"
-echo -e "${YELLOW}Abra seu navegador em: http://localhost:8000${NC}"
+# Start uvicorn server
+echo -e "${BLUE}Starting server on port 8000...${NC}"
+echo -e "${YELLOW}Open your browser at: http://localhost:8000${NC}"
 uvicorn main:app --host 0.0.0.0 --port 8000
