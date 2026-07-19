@@ -3,8 +3,8 @@
 Validation strategy: fetch the target page once directly (no proxy) as the
 reference. Every proxy-fetched page is then compared to that reference by
 content similarity — not by HTTP status, which anti-bot walls routinely fake
-with a 200 + block page. Some divergence is expected (ads, dynamic widgets),
-so success is "similar enough" (>= similarity_threshold), not byte-identical.
+with a 200 + block page. Supports both fast HTTP requests (httpx) and full
+headless browser rendering (Playwright).
 """
 
 import asyncio
@@ -12,8 +12,10 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
+from urllib.parse import urlparse
 
 import httpx
+from playwright.async_api import async_playwright
 
 MAX_LOG_ENTRIES = 4000
 
@@ -36,6 +38,21 @@ def parse_proxies(raw_text: str) -> list[str]:
             seen.add(line)
             proxies.append(line)
     return proxies
+
+
+def parse_playwright_proxy(proxy_url: str) -> dict:
+    """Extract server, username, and password for Playwright proxy configuration."""
+    parsed = urlparse(proxy_url)
+    scheme = parsed.scheme or "http"
+    host = parsed.hostname or ""
+    port = parsed.port
+    server = f"{scheme}://{host}:{port}" if port else f"{scheme}://{host}"
+    config = {"server": server}
+    if parsed.username:
+        config["username"] = parsed.username
+    if parsed.password:
+        config["password"] = parsed.password
+    return config
 
 
 def content_similarity(reference: str, body: str) -> float:
@@ -68,6 +85,7 @@ def evaluate_response(status_code: int, body: str, reference_body: str,
 @dataclass
 class TestConfig:
     target_url: str
+    engine: str = "httpx"  # httpx | playwright
     repetitions: int = 5
     concurrency: int = 5
     delay_ms: int = 500
@@ -107,15 +125,25 @@ class ProxyResult:
 
 
 async def fetch_reference(cfg: TestConfig) -> str:
-    """Download the target page directly (no proxy) to use as the comparison baseline.
-
-    Wrapped in wait_for: httpx's timeout is inter-chunk, not total-request, so a
-    server that trickles bytes just under the limit would otherwise stall forever.
-    """
+    """Download target page directly (httpx, no proxy) for comparison baseline."""
     timeout = httpx.Timeout(cfg.timeout_s)
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, verify=cfg.verify_ssl) as client:
         resp = await asyncio.wait_for(client.get(cfg.target_url), timeout=cfg.timeout_s * 2)
         return resp.text
+
+
+async def fetch_reference_playwright(cfg: TestConfig) -> str:
+    """Download target page directly via Playwright headless browser for comparison baseline."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        try:
+            context = await browser.new_context(ignore_https_errors=not cfg.verify_ssl)
+            page = await context.new_page()
+            await page.goto(cfg.target_url, timeout=int(cfg.timeout_s * 1000), wait_until="load")
+            content = await page.content()
+            return content
+        finally:
+            await browser.close()
 
 
 async def _single_attempt(client: httpx.AsyncClient, target_url: str, cfg: TestConfig,
@@ -173,6 +201,57 @@ async def test_proxy(proxy_url: str, cfg: TestConfig, reference_body: str, log_f
     return result
 
 
+async def test_proxy_playwright(proxy_url: str, cfg: TestConfig, reference_body: str, log_fn) -> ProxyResult:
+    result = ProxyResult(proxy=proxy_url)
+    log_fn(f"[{proxy_url}] starting Playwright headless browser test ({cfg.repetitions}x)")
+    proxy_config = parse_playwright_proxy(proxy_url)
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True, proxy=proxy_config)
+            try:
+                for i in range(cfg.repetitions):
+                    start = time.monotonic()
+                    try:
+                        context = await browser.new_context(ignore_https_errors=not cfg.verify_ssl)
+                        page = await context.new_page()
+                        response = await page.goto(cfg.target_url, timeout=int(cfg.timeout_s * 1000), wait_until="load")
+                        body = await page.content()
+                        status_code = response.status if response else 200
+                        elapsed = time.monotonic() - start
+                        await context.close()
+                        ok, similarity, reason = evaluate_response(status_code, body, reference_body, cfg.similarity_threshold)
+                        attempt = {"ok": ok, "latency": elapsed, "status": status_code, "reason": reason, "similarity": similarity}
+                    except Exception as e:
+                        elapsed = time.monotonic() - start
+                        err_str = str(e)
+                        if "Timeout" in err_str or "timeout" in err_str:
+                            reason = "timeout"
+                        elif "ERR_CONNECTION" in err_str or "Connection" in err_str:
+                            reason = "connection_error"
+                        else:
+                            reason = f"error:{err_str[:120]}"
+                        attempt = {"ok": False, "latency": elapsed, "status": None, "reason": reason, "similarity": None}
+
+                    result.attempts.append(attempt)
+                    if attempt["ok"]:
+                        sim_pct = round(attempt["similarity"] * 100)
+                        log_fn(f"[{proxy_url}] attempt {i + 1}/{cfg.repetitions}: OK (similarity {sim_pct}%, {attempt['latency']:.2f}s)")
+                    else:
+                        log_fn(f"[{proxy_url}] attempt {i + 1}/{cfg.repetitions}: FAILED ({attempt['reason']})")
+                    if cfg.delay_ms and i < cfg.repetitions - 1:
+                        await asyncio.sleep(cfg.delay_ms / 1000)
+            finally:
+                await browser.close()
+    except Exception as e:
+        result.attempts.append({"ok": False, "latency": None, "status": None,
+                                 "reason": f"client_error:{str(e)[:120]}", "similarity": None})
+        log_fn(f"[{proxy_url}] error creating Playwright browser: {str(e)[:120]}")
+
+    s = result.summary
+    log_fn(f"[{proxy_url}] completed: {s['passed']}/{s['total_requests']} ({round(s['success_rate'] * 100)}%)")
+    return result
+
+
 @dataclass
 class Job:
     id: str
@@ -205,16 +284,27 @@ class JobStore:
         return self._jobs.get(job_id)
 
     async def run(self, job: Job):
-        job.log_event(f"Downloading reference page (without proxy): {job.config.target_url}")
-        try:
-            reference_body = await fetch_reference(job.config)
-        except Exception as e:
-            job.status = "error"
-            job.error = f"Failed to download reference page (without proxy): {str(e)[:200]}"
-            job.log_event(f"ERROR downloading reference: {job.error}")
-            return
+        if job.config.engine == "playwright":
+            job.log_event(f"Downloading reference page via Playwright (without proxy): {job.config.target_url}")
+            try:
+                reference_body = await fetch_reference_playwright(job.config)
+            except Exception as e:
+                job.status = "error"
+                job.error = f"Failed to download reference page via Playwright: {str(e)[:200]}"
+                job.log_event(f"ERROR downloading reference: {job.error}")
+                return
+        else:
+            job.log_event(f"Downloading reference page via HTTP (without proxy): {job.config.target_url}")
+            try:
+                reference_body = await fetch_reference(job.config)
+            except Exception as e:
+                job.status = "error"
+                job.error = f"Failed to download reference page (without proxy): {str(e)[:200]}"
+                job.log_event(f"ERROR downloading reference: {job.error}")
+                return
+
         job.log_event(f"Reference page downloaded successfully ({len(reference_body)} bytes).")
-        job.log_event(f"Starting test for {len(job.proxies)} proxies "
+        job.log_event(f"Starting test for {len(job.proxies)} proxies using [{job.config.engine}] engine "
                        f"(concurrency {job.config.concurrency}, N={job.config.repetitions}).")
 
         sem = asyncio.Semaphore(max(1, job.config.concurrency))
@@ -223,7 +313,10 @@ class JobStore:
             async with sem:
                 if job.status == "cancelled":
                     return
-                res = await test_proxy(proxy, job.config, reference_body, job.log_event)
+                if job.config.engine == "playwright":
+                    res = await test_proxy_playwright(proxy, job.config, reference_body, job.log_event)
+                else:
+                    res = await test_proxy(proxy, job.config, reference_body, job.log_event)
                 job.results[proxy] = res.summary
                 job.completed += 1
 

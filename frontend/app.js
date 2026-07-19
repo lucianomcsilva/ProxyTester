@@ -13,6 +13,7 @@ async function startJob() {
   const body = {
     proxies_raw: $("proxies").value,
     target_url: $("target_url").value,
+    engine: $("engine").value,
     repetitions: parseInt($("repetitions").value, 10),
     concurrency: parseInt($("concurrency").value, 10),
     delay_ms: parseInt($("delay_ms").value, 10),

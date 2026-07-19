@@ -1,6 +1,6 @@
 #!/bin/bash
 # ProxyTester automatic initialization script
-# Sets up Python virtual environment and launches FastAPI backend
+# Sets up Python virtual environment, installs Playwright browsers, and launches FastAPI backend
 
 set -e
 
@@ -25,10 +25,21 @@ fi
 echo -e "${GREEN}Activating virtual environment...${NC}"
 source .venv/bin/activate
 
-# Install/update dependencies
-echo -e "${GREEN}Installing/updating dependencies...${NC}"
+# Install/update Python dependencies
+echo -e "${GREEN}Installing/updating Python dependencies...${NC}"
 pip install --upgrade pip
 pip install -r requirements.txt
+
+# Install Playwright browser binaries
+echo -e "${GREEN}Checking and installing Playwright Chromium browser...${NC}"
+playwright install chromium
+
+# Detect OS and install system dependencies on Linux if needed
+OS_TYPE="$(uname -s 2>/dev/null || echo "Unknown")"
+if [ "$OS_TYPE" = "Linux" ]; then
+    echo -e "${YELLOW}Linux detected. Installing system dependencies for Playwright (if needed)...${NC}"
+    playwright install-deps chromium || true
+fi
 
 # Start uvicorn server
 echo -e "${BLUE}Starting server on port 8000...${NC}"

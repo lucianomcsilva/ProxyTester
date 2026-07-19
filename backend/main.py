@@ -19,6 +19,7 @@ app = FastAPI(title="ProxyTester")
 class TestRequest(BaseModel):
     proxies_raw: str
     target_url: str = "https://www.uol.com.br"
+    engine: str = Field("httpx", pattern="^(httpx|playwright)$")
     repetitions: int = Field(5, ge=1, le=50)
     concurrency: int = Field(5, ge=1, le=50)
     delay_ms: int = Field(500, ge=0, le=60_000)
@@ -37,6 +38,7 @@ async def create_job(req: TestRequest):
 
     cfg = TestConfig(
         target_url=req.target_url.strip(),
+        engine=req.engine,
         repetitions=req.repetitions,
         concurrency=req.concurrency,
         delay_ms=req.delay_ms,

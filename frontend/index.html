@@ -18,13 +18,22 @@
         <div class="col-proxies">
           <label for="proxies">Proxy list (one per line)</label>
           <textarea id="proxies" rows="16" placeholder="http://user:pass@ip:port
-http://ip:porta
+http://ip:port
 # lines starting with # are ignored"></textarea>
         </div>
 
         <div class="col-config">
           <label for="target_url">Target URL</label>
           <input id="target_url" type="text" value="https://www.uol.com.br" placeholder="https://example.com/page" />
+
+          <label for="engine">Testing Engine</label>
+          <select id="engine">
+            <option value="httpx" selected>HTTP Client (Fast - httpx)</option>
+            <option value="playwright">Headless Browser (Full JS - Playwright)</option>
+          </select>
+          <p class="hint" id="engine-hint">
+            Use HTTP Client for maximum speed. Use Headless Browser for sites requiring full JavaScript execution and browser rendering.
+          </p>
 
           <div class="row">
             <div>
